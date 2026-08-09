@@ -1,0 +1,46 @@
+[
+  {
+    "id": "p_001",
+    "name": "Industrial Gate Valve - Cast Iron",
+    "category": "Valves",
+    "description": "Heavy-duty cast iron gate valve for industrial water and fluid control. Flanged connection. DN50 to DN300.",
+    "supplier_id": "s_101",
+    "price_range": "$120 - $450",
+    "min_order_qty": 5,
+    "lead_time": "1-2 weeks",
+    "location": "Mumbai, Maharashtra"
+  },
+  {
+    "id": "p_002",
+    "name": "Stainless Steel Ball Valve",
+    "category": "Valves",
+    "description": "SS316 ball valve with PTFE seats. High corrosion resistance. Suitable for chemical processing.",
+    "supplier_id": "s_102",
+    "price_range": "$45 - $150",
+    "min_order_qty": 20,
+    "lead_time": "3-5 days",
+    "location": "Pune, Maharashtra"
+  },
+  {
+    "id": "p_003",
+    "name": "Aluminum Solar Panel Mounting Brackets",
+    "category": "Renewable Energy",
+    "description": "Anodized aluminum Z-brackets and rails for solar panel mounting. High wind load resistance (IS 875 compliant).",
+    "supplier_id": "s_103",
+    "price_range": "$12 - $25 per set",
+    "min_order_qty": 100,
+    "lead_time": "2-3 weeks",
+    "location": "Mumbai, Maharashtra"
+  },
+  {
+    "id": "p_004",
+    "name": "Carbon Steel Seamless Pipes",
+    "category": "Pipes & Fittings",
+    "description": "API 5L Grade B seamless pipes for oil & gas and structural applications. Sch 40 & Sch 80 available.",
+    "supplier_id": "s_104",
+    "price_range": "$800 - $1200 per MT",
+    "min_order_qty": 5000,
+    "lead_time": "4 weeks",
+    "location": "Pune, Maharashtra"
+  }
+]

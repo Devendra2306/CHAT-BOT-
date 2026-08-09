@@ -1,0 +1,34 @@
+[
+  {
+    "id": "s_101",
+    "name": "Acme Industrial Valves Ltd",
+    "rating": 4.8,
+    "verified": true,
+    "location": "Mumbai, Maharashtra",
+    "specialties": ["Gate Valves", "Butterfly Valves", "Check Valves"]
+  },
+  {
+    "id": "s_102",
+    "name": "Precision Flow Controls",
+    "rating": 4.5,
+    "verified": true,
+    "location": "Pune, Maharashtra",
+    "specialties": ["Ball Valves", "SS Fittings", "Control Valves"]
+  },
+  {
+    "id": "s_103",
+    "name": "SolarTech Mountings",
+    "rating": 4.9,
+    "verified": true,
+    "location": "Mumbai, Maharashtra",
+    "specialties": ["Solar Mounts", "Aluminum Extrusions"]
+  },
+  {
+    "id": "s_104",
+    "name": "Maharashtra Steel & Pipe",
+    "rating": 4.2,
+    "verified": false,
+    "location": "Pune, Maharashtra",
+    "specialties": ["Carbon Steel Pipes", "Seamless Pipes", "Structural Steel"]
+  }
+]

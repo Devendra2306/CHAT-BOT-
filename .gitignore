@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# ChromaDB
+backend/chroma_db/
+
+# Node
+node_modules/
+.next/
+dist/
+.DS_Store
