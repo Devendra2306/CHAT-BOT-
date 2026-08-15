@@ -1,13 +1,14 @@
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import json
 import os
 import asyncio
 from dotenv import load_dotenv
 
-from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Chroma
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
@@ -19,80 +20,101 @@ app = FastAPI(title="Marketplace Assistant API")
 # Enable CORS for the Next.js frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # In production, restrict this to the frontend URL
+    allow_origins=["*"], 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 
 # Initialize models and vector store
 try:
-    embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+    embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
     llm = ChatGoogleGenerativeAI(model="gemini-flash-latest", temperature=0.2)
-    # Note: Using gemini-flash-latest as it is extremely fast and free-tier friendly
     
     # Load vector store exists
     if os.path.exists("chroma_db"):
-        vectorstore = Chroma(persist_directory="chroma_db", embedding_function=embeddings)
-        retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
+        catalogue_vectorstore = Chroma(persist_directory="chroma_db", collection_name="catalogue", embedding_function=embeddings)
+        catalogue_retriever = catalogue_vectorstore.as_retriever(search_kwargs={"k": 3})
+        
+        faq_vectorstore = Chroma(persist_directory="chroma_db", collection_name="faq", embedding_function=embeddings)
+        faq_retriever = faq_vectorstore.as_retriever(search_kwargs={"k": 3})
     else:
         print("WARNING: ChromaDB not found. Please run ingest.py first.")
-        retriever = None
+        catalogue_retriever = None
+        faq_retriever = None
 except Exception as e:
     print(f"Error initializing AI components: {e}")
-    retriever = None
-
+    catalogue_retriever = None
+    faq_retriever = None
 
 class ChatRequest(BaseModel):
     message: str
-    history: list[dict] = [] # list of {"role": "user"|"assistant", "content": "..."}
+    history: list[dict] = []
 
-SYSTEM_PROMPT = """You are a highly capable AI Marketplace Assistant.
+class IntentClassification(BaseModel):
+    intent: str = Field(description="The intent of the user's message. Must be exactly one of: 'PRODUCT_SEARCH', 'SUPPORT_QUESTION', 'RFQ_GENERATION', or 'GENERAL_CHAT'.")
+
+# Structured LLM for intent routing
+intent_llm = llm.with_structured_output(IntentClassification)
+
+SYSTEM_PROMPT = """You are an advanced AI Marketplace Assistant.
 Your goal is to help buyers discover products, find suppliers, draft RFQs (Requests for Quotation), and answer support questions.
 
-Here is some context retrieved from our database (products, suppliers, or FAQs) that is relevant to the user's query:
+[ROUTING CONTEXT]
+The user's message was classified with the intent: {intent}.
+Relevant information retrieved from the database based on this intent:
 <context>
 {context}
 </context>
 
 INSTRUCTIONS:
-1. Answer the user's questions based ONLY on the context provided above.
-2. If the user is asking about how the marketplace works, use the FAQ context to answer.
-3. If the user is looking for products or suppliers, summarize the matching products from the context. Include the supplier name, location, and price if available.
-4. If the user wants to buy something or asks for a quote, you should help them draft an RFQ. Extract the required details (Product, Quantity, Location, Timeline) and present it clearly. If details are missing, ask clarifying questions.
-5. If the user just says "hi", "hello", or asks for your name, respond politely and introduce yourself as the Marketplace AI Assistant.
-6. Do NOT invent products or suppliers that are not in the context.
+1. Answer the user's questions utilizing the retrieved context.
+2. If the intent is SUPPORT_QUESTION, the context contains FAQ rules and policies. Use it to answer gracefully.
+3. If the intent is PRODUCT_SEARCH, the context contains matching products and suppliers. Summarize them, including supplier names and prices if available.
+4. If the intent is RFQ_GENERATION, help them draft an RFQ based on their requested products.
+5. If the intent is GENERAL_CHAT (like "hello" or "how are you"), respond politely and introduce yourself as the Marketplace AI Assistant.
+6. Do NOT invent products, suppliers, or policies that are not in the context.
 
 Respond in a helpful, professional, and concise manner.
 """
 
 @app.post("/chat")
 async def chat_endpoint(request: ChatRequest):
-    # Don't strictly block if retriever is missing, allow demo mode
-    if not retriever:
+    if not catalogue_retriever or not faq_retriever:
         print("WARNING: Database not initialized. Will use demo context.")
     
-    # 1. Retrieve relevant context
+    # 1. Classify Intent (The "Router Brain")
+    try:
+        classification = await intent_llm.ainvoke(request.message)
+        intent = classification.intent
+        print(f"User Message Classified As: {intent}")
+    except Exception as e:
+        print(f"Intent classification failed: {e}")
+        intent = "PRODUCT_SEARCH" # fallback
+        
+    # 2. Retrieve relevant context based on intent
     context = ""
     try:
-        if retriever:
-            docs = retriever.invoke(request.message)
+        if intent in ["PRODUCT_SEARCH", "RFQ_GENERATION"] and catalogue_retriever:
+            docs = await catalogue_retriever.ainvoke(request.message)
+            context = "\n\n".join([doc.page_content for doc in docs])
+        elif intent == "SUPPORT_QUESTION" and faq_retriever:
+            docs = await faq_retriever.ainvoke(request.message)
             context = "\n\n".join([doc.page_content for doc in docs])
         else:
-            context = "No database found. Running in demo mode without retrieval."
+            context = "No database search was required for this query, or database is missing."
     except Exception as e:
         print(f"Retrieval error: {e}")
         context = "Database query failed. Running in demo mode."
     
-    # 2. Build prompt
+    # 3. Build prompt
     prompt_template = ChatPromptTemplate.from_messages([
         ("system", SYSTEM_PROMPT),
         MessagesPlaceholder(variable_name="history"),
         ("human", "{message}")
     ])
     
-    # 3. Format history
+    # 4. Format history
     langchain_history = []
     for msg in request.history:
         if msg.get("role") == "user":
@@ -100,13 +122,14 @@ async def chat_endpoint(request: ChatRequest):
         else:
             langchain_history.append(AIMessage(content=msg.get("content")))
             
-    # 4. Create the runnable chain
+    # 5. Create the runnable chain
     chain = prompt_template | llm
     
-    # 5. Execute and return stream (simulated streaming for now, we can upgrade to true LangChain streaming)
+    # 6. Execute and return stream
     async def generate():
         try:
             async for chunk in chain.astream({
+                "intent": intent,
                 "context": context,
                 "history": langchain_history,
                 "message": request.message
@@ -119,10 +142,7 @@ async def chat_endpoint(request: ChatRequest):
                 yield f"data: {json.dumps({'content': content})}\n\n"
         except Exception as e:
             print(f"LLM Error: {e}")
-            # Mock fallback if API key is invalid or LLM fails
-            yield f"data: {json.dumps({'content': 'I am currently running in **Demo Mode** because the Gemini API key is missing or invalid. '})}\n\n"
-            yield f"data: {json.dumps({'content': 'However, I can tell you that we have products like *Industrial Gate Valves* and *Solar Panel Mounts* in our mock database! '})}\n\n"
-            yield f"data: {json.dumps({'content': '\\n\\nPlease add your `GOOGLE_API_KEY` to `backend/.env` to enable full AI functionality.'})}\n\n"
+            yield f"data: {json.dumps({'content': 'I encountered an error connecting to my AI brain. Please check your API keys.'})}\n\n"
             
         yield "data: [DONE]\n\n"
         
@@ -130,4 +150,4 @@ async def chat_endpoint(request: ChatRequest):
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok", "database_ready": retriever is not None}
+    return {"status": "ok", "database_ready": catalogue_retriever is not None}

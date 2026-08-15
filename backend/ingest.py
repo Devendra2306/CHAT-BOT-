@@ -3,14 +3,15 @@ import os
 from langchain_community.document_loaders import TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_core.documents import Document
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
 
-# Initialize embeddings
-embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+# Initialize embeddings using local fast HuggingFace model
+embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 
 CHROMA_PATH = "chroma_db"
 
