@@ -54,8 +54,16 @@ class ChatRequest(BaseModel):
 class IntentClassification(BaseModel):
     intent: str = Field(description="The intent of the user's message. Must be exactly one of: 'PRODUCT_SEARCH', 'SUPPORT_QUESTION', 'RFQ_GENERATION', or 'GENERAL_CHAT'.")
 
-# Structured LLM for intent routing
+class RFQLead(BaseModel):
+    product: str = Field(description="The product being requested", default="")
+    quantity: str = Field(description="The quantity being requested", default="")
+    location: str = Field(description="The delivery location", default="")
+    timeline: str = Field(description="The delivery timeline (e.g., 'next week', 'urgent')", default="")
+    is_complete: bool = Field(description="True if product, quantity, location, and timeline are ALL explicitly stated in the conversation history.", default=False)
+
+# Structured LLM for intent routing and RFQ extraction
 intent_llm = llm.with_structured_output(IntentClassification)
+rfq_llm = llm.with_structured_output(RFQLead)
 
 SYSTEM_PROMPT = """You are an advanced AI Marketplace Assistant.
 Your goal is to help buyers discover products, find suppliers, draft RFQs (Requests for Quotation), and answer support questions.
@@ -71,7 +79,7 @@ INSTRUCTIONS:
 1. Answer the user's questions utilizing the retrieved context.
 2. If the intent is SUPPORT_QUESTION, the context contains FAQ rules and policies. Use it to answer gracefully.
 3. If the intent is PRODUCT_SEARCH, the context contains matching products and suppliers. Summarize them, including supplier names and prices if available.
-4. If the intent is RFQ_GENERATION, help them draft an RFQ based on their requested products.
+4. If the intent is RFQ_GENERATION, review the SYSTEM NOTIFICATION in the context. If the RFQ is incomplete, ask the user for the missing details politely. If it is complete, congratulate them that it was submitted.
 5. If the intent is GENERAL_CHAT (like "hello" or "how are you"), respond politely and introduce yourself as the Marketplace AI Assistant.
 6. Do NOT invent products, suppliers, or policies that are not in the context.
 
@@ -106,15 +114,43 @@ async def chat_endpoint(request: ChatRequest):
     except Exception as e:
         print(f"Retrieval error: {e}")
         context = "Database query failed. Running in demo mode."
+        
+    # 3. RFQ Conversational Extraction Logic
+    if intent == "RFQ_GENERATION":
+        try:
+            full_convo = "\n".join([msg.get("content", "") for msg in request.history]) + "\nUser: " + request.message
+            rfq_data = await rfq_llm.ainvoke(f"Extract RFQ details from this conversation:\n{full_convo}")
+            
+            if rfq_data.is_complete:
+                # Save to mock CRM
+                rfq_dict = rfq_data.model_dump()
+                crm_path = "data/rfqs.json"
+                existing = []
+                if os.path.exists(crm_path):
+                    with open(crm_path, "r") as f:
+                        try:
+                            existing = json.load(f)
+                        except:
+                            pass
+                existing.append(rfq_dict)
+                with open(crm_path, "w") as f:
+                    json.dump(existing, f, indent=4)
+                    
+                context += f"\n\n[SYSTEM NOTIFICATION: RFQ successfully saved to CRM: {rfq_dict}. Tell the user the RFQ was successfully submitted to our suppliers and they will be contacted shortly.]"
+                print(f"--- NEW LEAD CAPTURED --- \n{rfq_dict}")
+            else:
+                context += f"\n\n[SYSTEM NOTIFICATION: The RFQ is NOT complete yet. Currently extracted: {rfq_data.model_dump()}. Ask the user specifically for the missing fields (product, quantity, location, or timeline).]"
+        except Exception as e:
+            print(f"RFQ Extraction error: {e}")
     
-    # 3. Build prompt
+    # 4. Build prompt
     prompt_template = ChatPromptTemplate.from_messages([
         ("system", SYSTEM_PROMPT),
         MessagesPlaceholder(variable_name="history"),
         ("human", "{message}")
     ])
     
-    # 4. Format history
+    # 5. Format history
     langchain_history = []
     for msg in request.history:
         if msg.get("role") == "user":
@@ -122,10 +158,10 @@ async def chat_endpoint(request: ChatRequest):
         else:
             langchain_history.append(AIMessage(content=msg.get("content")))
             
-    # 5. Create the runnable chain
+    # 6. Create the runnable chain
     chain = prompt_template | llm
     
-    # 6. Execute and return stream
+    # 7. Execute and return stream
     async def generate():
         try:
             async for chunk in chain.astream({
