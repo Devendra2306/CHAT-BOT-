@@ -43,6 +43,7 @@ try:
         
         faq_vectorstore = Chroma(persist_directory="chroma_db", collection_name="faq", embedding_function=embeddings)
         faq_retriever = faq_vectorstore.as_retriever(search_kwargs={"k": 3})
+        print("Successfully loaded ChromaDB retrievers.")
     else:
         print("WARNING: ChromaDB not found. Please run ingest.py first.")
         catalogue_retriever = None
