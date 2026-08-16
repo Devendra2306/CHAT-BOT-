@@ -7,7 +7,7 @@ import os
 import asyncio
 from dotenv import load_dotenv
 
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_openai import ChatOpenAI
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Chroma
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
@@ -29,7 +29,12 @@ app.add_middleware(
 # Initialize models and vector store
 try:
     embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-    llm = ChatGoogleGenerativeAI(model="gemini-flash-latest", temperature=0.2)
+    llm = ChatOpenAI(
+        model="gemini-flash-latest",
+        temperature=0.2,
+        base_url="http://localhost:20128/v1",
+        api_key=os.environ.get("OMNIROUTE_API_KEY")
+    )
     
     # Load vector store exists
     if os.path.exists("chroma_db"):
