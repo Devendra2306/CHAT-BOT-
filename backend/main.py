@@ -149,7 +149,7 @@ async def chat_endpoint(request: ChatRequest):
             else:
                 context += f"\n\n[SYSTEM NOTIFICATION: The RFQ is NOT complete yet. Currently extracted: {rfq_data.model_dump()}. Ask the user specifically for the missing fields (product, quantity, location, or timeline).]"
         except Exception as e:
-            print(f"RFQ Extraction error: {e}")
+            print(f"[RFQ System] Extraction error: {e}")
     
     # 4. Build prompt
     prompt_template = ChatPromptTemplate.from_messages([
