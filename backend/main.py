@@ -191,5 +191,5 @@ async def chat_endpoint(request: ChatRequest):
     return StreamingResponse(generate(), media_type="text/event-stream")
 
 @app.get("/health")
-def health_check():
+def health_check() -> dict:
     return {"status": "ok", "database_ready": catalogue_retriever is not None}
