@@ -188,6 +188,7 @@ async def chat_endpoint(request: ChatRequest):
             print(f"LLM Error: {e}")
             yield f"data: {json.dumps({'content': 'I encountered an error connecting to my AI brain. Please check your API keys.'})}\n\n"
             
+        # Signal end of stream
         yield "data: [DONE]\n\n"
         
     return StreamingResponse(generate(), media_type="text/event-stream")
