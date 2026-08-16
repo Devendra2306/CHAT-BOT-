@@ -192,4 +192,5 @@ async def chat_endpoint(request: ChatRequest):
 
 @app.get("/health")
 def health_check() -> dict:
+    """Return the health status of the API."""
     return {"status": "ok", "database_ready": catalogue_retriever is not None}
