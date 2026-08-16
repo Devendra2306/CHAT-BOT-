@@ -53,7 +53,7 @@ except Exception as e:
     faq_retriever = None
 
 class ChatRequest(BaseModel):
-    message: str
+    message: str = Field(..., description="User message content")
     history: list[dict] = []
 
 class IntentClassification(BaseModel):
