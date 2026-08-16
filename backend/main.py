@@ -103,7 +103,7 @@ async def chat_endpoint(request: ChatRequest):
     try:
         classification = await intent_llm.ainvoke(request.message)
         intent = classification.intent
-        print(f"User Message Classified As: {intent}")
+        print(f"[Intent Classifier] User Message Classified As: {intent}")
     except Exception as e:
         print(f"Intent classification failed: {e}")
         intent = "PRODUCT_SEARCH" # fallback
