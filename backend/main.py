@@ -67,6 +67,7 @@ class RFQLead(BaseModel):
     is_complete: bool = Field(description="True if product, quantity, location, and timeline are ALL explicitly stated in the conversation history.", default=False)
 
 # Structured LLM for intent routing and RFQ extraction
+# Initialize structured output chains
 intent_llm = llm.with_structured_output(IntentClassification)
 rfq_llm = llm.with_structured_output(RFQLead)
 
