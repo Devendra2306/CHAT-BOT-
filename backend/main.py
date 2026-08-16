@@ -120,7 +120,7 @@ async def chat_endpoint(request: ChatRequest):
         else:
             context = "No database search was required for this query, or database is missing."
     except Exception as e:
-        print(f"Retrieval error: {e}")
+        print(f"Database Retrieval error: {e}")
         context = "Database query failed. Running in demo mode."
         
     # 3. RFQ Conversational Extraction Logic
